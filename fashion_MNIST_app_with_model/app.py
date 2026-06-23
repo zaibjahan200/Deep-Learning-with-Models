@@ -4,7 +4,7 @@ import cv2
 from tensorflow.keras.models import load_model
 from PIL import Image
 
-model = load_model("fashion_MNIST_(0.87%).keras")
+model = load_model("fashion_mnist_87.keras")
 
 classes = [
     "T-shirt/top","Trouser","Pullover","Dress","Coat",

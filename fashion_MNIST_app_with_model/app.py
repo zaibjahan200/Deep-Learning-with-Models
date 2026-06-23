@@ -6,7 +6,7 @@ from PIL import Image
 # Cache the model loading
 @st.cache_resource
 def load_my_model():
-    return load_model("fashion_mnist_87.keras")
+    return load_model("fashion_MNIST_app_with_model/mnist.keras")
 
 model = load_my_model()
 

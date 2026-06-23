@@ -3,7 +3,6 @@ import numpy as np
 from tensorflow.keras.models import load_model
 from PIL import Image
 
-# Cache the model loading
 @st.cache_resource
 def load_my_model():
     return load_model("fashion_MNIST_app_with_model/mnist.keras")
@@ -16,10 +15,23 @@ classes = [
 ]
 
 def preprocess(image):
-    img = image.convert("L")  # Grayscale
+    # 1. Convert to grayscale
+    img = image.convert("L")
+    
+    # 2. Resize to 28x28
     img = img.resize((28, 28), Image.Resampling.LANCZOS)
+    
+    # 3. Convert to numpy array and normalize to [0, 1]
     img = np.array(img) / 255.0
-    img = img.reshape(1, 784)  # Flatten
+    
+    # 4. 🚀 CRITICAL FIX: Invert colors if background is lighter than the object
+    # Fashion-MNIST expects Black background (0) and White object (1).
+    # If the average pixel is > 0.5, the image is mostly white (light background), so we invert!
+    if np.mean(img) > 0.5:
+        img = 1.0 - img  # Flip black <-> white
+    
+    # 5. Flatten to (784,) and reshape to (1, 784) for the model
+    img = img.reshape(1, 784)
     return img
 
 st.title("👕 Fashion Classifier")
@@ -37,4 +49,4 @@ if uploaded_file is not None:
     confidence = np.max(pred)
 
     st.success(f"Prediction: **{label}**")
-    st.info(f"Confidence: **{confidence:.2%}**") # Display as percentage
+    st.info(f"Confidence: **{confidence:.2%}**")

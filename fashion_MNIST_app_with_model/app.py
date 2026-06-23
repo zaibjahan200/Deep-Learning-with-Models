@@ -36,7 +36,20 @@ def preprocess(image):
 
 st.title("👕 Fashion Classifier")
 
-uploaded_file = st.file_uploader("Upload image", type=["jpg", "png", "jpeg"])
+# --- ADD THIS SECTION ---
+st.markdown("""
+### 🧠 What this model does:
+This AI model is trained on the **Fashion-MNIST** dataset and can identify **10 different types of fashion items** from images:
+
+👕 T-shirt/Top | 👖 Trouser | 🧥 Pullover | 👗 Dress | 🧶 Coat  
+👡 Sandal | 👔 Shirt | 👟 Sneaker | 🎒 Bag | 👢 Ankle Boot
+
+**📸 How to use:** Upload any image of a single clothing item or fashion accessory.  
+**✨ Smart feature:** The app automatically adjusts the colors (inverts dark/light backgrounds) so it works with real-world photos, not just the standard black-background training images!
+""")
+# ------------------------
+
+uploaded_file = st.file_uploader("Upload an image of a fashion item", type=["jpg", "png", "jpeg"])
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file)
@@ -48,5 +61,5 @@ if uploaded_file is not None:
     label = classes[np.argmax(pred)]
     confidence = np.max(pred)
 
-    st.success(f"Prediction: **{label}**")
-    st.info(f"Confidence: **{confidence:.2%}**")
+    st.success(f"**Prediction:** {label}")
+    st.info(f"**Confidence:** {confidence:.2%}")

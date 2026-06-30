@@ -6,20 +6,41 @@ import re
 from tensorflow.keras.models import load_model
 from nltk.tokenize import TweetTokenizer
 from urlextract import URLExtract
+from pathlib import Path
+
+# Get the directory where app.py is located
+BASE_DIR = Path(__file__).parent
+
+# Define file paths relative to BASE_DIR
+MODEL_PATH = BASE_DIR / "tweet_v1_better.keras"
+VOCAB_PATH = BASE_DIR / "train_vocab.pkl"
+CONFIG_PATH = BASE_DIR / "config.pkl"
+THRESHOLDS_PATH = BASE_DIR / "best_thresholds.pkl"
+CLASSES_PATH = BASE_DIR / "kept_classes.pkl"
 
 # ============================================================================
 # 1. LOAD ALL ARTIFACTS (cached for performance)
 # ============================================================================
 @st.cache_resource
+def check_file_exists(path):
+    if not path.exists():
+        st.error(f"❌ Required file not found: {path}")
+        st.stop()
+  #  Call it before each load:
 def load_artifacts():
-    model = load_model(r'tweet_classifier\tweet_v1_better.keras')
-    with open(r'tweet_classifier\train_vocab.pkl', 'rb') as f:
+    check_file_exists(MODEL_PATH)
+    model = load_model(MODEL_PATH)
+    check_file_exists(VOCAB_PATH)
+    with open(VOCAB_PATH, 'rb') as f:
         vocab = pickle.load(f)
-    with open(r'tweet_classifier\config.pkl', 'rb') as f:
+    check_file_exists(CONFIG_PATH)
+    with open(CONFIG_PATH, 'rb') as f:
         config = pickle.load(f)
-    with open(r'tweet_classifier\best_thresholds.pkl', 'rb') as f:
+    check_file_exists(THRESHOLDS_PATH)
+    with open(THRESHOLDS_PATH, 'rb') as f:
         thresholds = pickle.load(f)
-    with open(r'tweet_classifier\kept_classes.pkl', 'rb') as f:
+    check_file_exists(CLASSES_PATH)
+    with open(CLASSES_PATH, 'rb') as f:
         class_names = pickle.load(f)
     return model, vocab, config, thresholds, class_names
 

@@ -1,0 +1,6 @@
+streamlit
+plotly
+tensorflow
+numpy
+nltk
+urlextract

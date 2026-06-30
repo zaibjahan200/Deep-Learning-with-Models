@@ -12,14 +12,14 @@ from urlextract import URLExtract
 # ============================================================================
 @st.cache_resource
 def load_artifacts():
-    model = load_model('tweet_v1_better.keras')
-    with open('train_vocab.pkl', 'rb') as f:
+    model = load_model(r'tweet_classifier\tweet_v1_better.keras')
+    with open(r'tweet_classifier\train_vocab.pkl', 'rb') as f:
         vocab = pickle.load(f)
-    with open('config.pkl', 'rb') as f:
+    with open(r'tweet_classifier\config.pkl', 'rb') as f:
         config = pickle.load(f)
-    with open('best_thresholds.pkl', 'rb') as f:
+    with open(r'tweet_classifier\best_thresholds.pkl', 'rb') as f:
         thresholds = pickle.load(f)
-    with open('kept_classes.pkl', 'rb') as f:
+    with open(r'tweet_classifier\kept_classes.pkl', 'rb') as f:
         class_names = pickle.load(f)
     return model, vocab, config, thresholds, class_names
 

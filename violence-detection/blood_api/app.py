@@ -10,7 +10,7 @@ import tensorflow as tf
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 # ------------------ LOAD MODEL ------------------
-MODEL_PATH = "blood_model.keras"   # your .keras file
+MODEL_PATH = "Blood_model.keras"   # your .keras file
 print(f"⏳ Loading model from {MODEL_PATH}...")
 model = tf.keras.models.load_model(MODEL_PATH)
 print("✅ Model loaded successfully!")

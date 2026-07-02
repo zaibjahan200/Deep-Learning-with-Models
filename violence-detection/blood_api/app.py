@@ -9,6 +9,15 @@ import tensorflow as tf
 # Force CPU (optional – if you want to avoid CUDA issues inside Docker)
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
+# Print all .keras files in the current directory
+print("📂 Files in /app:")
+print(os.listdir("."))
+keras_files = [f for f in os.listdir(".") if f.endswith(".keras")]
+if keras_files:
+    print(f"🔍 Found .keras files: {keras_files}")
+    MODEL_PATH = keras_files[0]   # pick the first one (or you can hardcode)
+else:
+    raise FileNotFoundError("No .keras file found in /app")
 # ------------------ LOAD MODEL ------------------
 MODEL_PATH = "Blood_model.keras"   # your .keras file
 print(f"⏳ Loading model from {MODEL_PATH}...")

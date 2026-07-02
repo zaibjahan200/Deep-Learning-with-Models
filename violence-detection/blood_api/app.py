@@ -6,48 +6,36 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import HTMLResponse
 import tensorflow as tf
 
-# Force CPU
+# Force CPU (optional, for Docker)
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-# ------------------ FIND THE .KERAS FILE ------------------
-# List all .keras files in the current directory
+# ------------------ 1. FIND AND LOAD MODEL ------------------
+# Automatically pick the .keras file in the current directory
 keras_files = [f for f in os.listdir(".") if f.endswith(".keras")]
 if not keras_files:
-    raise FileNotFoundError("No .keras file found in the current directory.")
-MODEL_PATH = keras_files[0]  # use the first one found
+    raise FileNotFoundError("No .keras model file found in the current directory.")
+MODEL_PATH = keras_files[0]  # use the first one
 print(f"📂 Using model file: {MODEL_PATH}")
 
-# ------------------ LOAD MODEL ------------------
-print(f"⏳ Loading model from {MODEL_PATH}...")
-import zipfile
-import os
-
-# Print file size and type
-stat = os.stat(MODEL_PATH)
-print(f"📄 File size: {stat.st_size} bytes")
-print(f"🔍 Is it a zip file? {zipfile.is_zipfile(MODEL_PATH)}")
-
-# If it's a directory, list its contents
-if os.path.isdir(MODEL_PATH):
-    print(f"📂 It's a directory. Contents: {os.listdir(MODEL_PATH)}")
-else:
-    # Try to read first few bytes
-    with open(MODEL_PATH, 'rb') as f:
-        header = f.read(20)
-        print(f"🔢 First 20 bytes: {header.hex()}")
+# Load the model (this will print any TensorFlow warnings)
+print("⏳ Loading model...")
 model = tf.keras.models.load_model(MODEL_PATH)
 print("✅ Model loaded successfully!")
 
-# ------------------ PREPROCESSING ------------------
+# ------------------ 2. PREPROCESSING FUNCTION ------------------
 def preprocess_image(image_bytes):
     img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-    img = img.resize((224, 224))
-    img_array = np.array(img) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
+    img = img.resize((224, 224))          # match training size
+    img_array = np.array(img) / 255.0     # normalize
+    img_array = np.expand_dims(img_array, axis=0)  # add batch dimension
     return img_array.astype(np.float32)
 
-# ------------------ FASTAPI APP ------------------
-app = FastAPI(title="Blood Detection API", version="1.0")
+# ------------------ 3. FASTAPI APP ------------------
+app = FastAPI(
+    title="Blood Detection API",
+    description="Predicts if an image contains blood",
+    version="1.0"
+)
 
 @app.get("/")
 async def root():
@@ -72,7 +60,7 @@ async def predict(file: UploadFile = File(...)):
             }
         }
     except Exception as e:
-        raise HTTPException(500, f"Error: {str(e)}")
+        raise HTTPException(500, detail=f"Prediction error: {str(e)}")
     finally:
         await file.close()
 
@@ -92,6 +80,8 @@ async def test_form():
     </html>
     """
 
+# ------------------ 4. START THE SERVER (only when run directly) ------------------
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8080, reload=True)
+    # reload=False is recommended for production
+    uvicorn.run("app:app", host="0.0.0.0", port=8080, reload=False)

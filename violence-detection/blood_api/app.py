@@ -19,6 +19,22 @@ print(f"📂 Using model file: {MODEL_PATH}")
 
 # ------------------ LOAD MODEL ------------------
 print(f"⏳ Loading model from {MODEL_PATH}...")
+import zipfile
+import os
+
+# Print file size and type
+stat = os.stat(MODEL_PATH)
+print(f"📄 File size: {stat.st_size} bytes")
+print(f"🔍 Is it a zip file? {zipfile.is_zipfile(MODEL_PATH)}")
+
+# If it's a directory, list its contents
+if os.path.isdir(MODEL_PATH):
+    print(f"📂 It's a directory. Contents: {os.listdir(MODEL_PATH)}")
+else:
+    # Try to read first few bytes
+    with open(MODEL_PATH, 'rb') as f:
+        header = f.read(20)
+        print(f"🔢 First 20 bytes: {header.hex()}")
 model = tf.keras.models.load_model(MODEL_PATH)
 print("✅ Model loaded successfully!")
 

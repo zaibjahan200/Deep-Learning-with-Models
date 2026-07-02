@@ -6,20 +6,18 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import HTMLResponse
 import tensorflow as tf
 
-# Force CPU (optional – if you want to avoid CUDA issues inside Docker)
+# Force CPU
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-# Print all .keras files in the current directory
-print("📂 Files in /app:")
-print(os.listdir("."))
+# ------------------ FIND THE .KERAS FILE ------------------
+# List all .keras files in the current directory
 keras_files = [f for f in os.listdir(".") if f.endswith(".keras")]
-if keras_files:
-    print(f"🔍 Found .keras files: {keras_files}")
-    MODEL_PATH = keras_files[0]   # pick the first one (or you can hardcode)
-else:
-    raise FileNotFoundError("No .keras file found in /app")
+if not keras_files:
+    raise FileNotFoundError("No .keras file found in the current directory.")
+MODEL_PATH = keras_files[0]  # use the first one found
+print(f"📂 Using model file: {MODEL_PATH}")
+
 # ------------------ LOAD MODEL ------------------
-MODEL_PATH = "Blood_model.keras"   # your .keras file
 print(f"⏳ Loading model from {MODEL_PATH}...")
 model = tf.keras.models.load_model(MODEL_PATH)
 print("✅ Model loaded successfully!")
@@ -27,9 +25,9 @@ print("✅ Model loaded successfully!")
 # ------------------ PREPROCESSING ------------------
 def preprocess_image(image_bytes):
     img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-    img = img.resize((224, 224))          # match training input shape
-    img_array = np.array(img) / 255.0     # normalize
-    img_array = np.expand_dims(img_array, axis=0)   # add batch dim
+    img = img.resize((224, 224))
+    img_array = np.array(img) / 255.0
+    img_array = np.expand_dims(img_array, axis=0)
     return img_array.astype(np.float32)
 
 # ------------------ FASTAPI APP ------------------
@@ -46,7 +44,7 @@ async def predict(file: UploadFile = File(...)):
     try:
         image_bytes = await file.read()
         input_tensor = preprocess_image(image_bytes)
-        pred = model.predict(input_tensor, verbose=0)[0][0]   # probability
+        pred = model.predict(input_tensor, verbose=0)[0][0]
         prob_blood = float(pred)
         prob_no_blood = 1.0 - prob_blood
         class_label = "Blood" if prob_blood >= 0.5 else "No Blood"

@@ -5,19 +5,21 @@ from PIL import Image
 import cv2
 import tensorflow as tf
 from tensorflow import keras
+import keras_cv  # <-- necessary for custom layer deserialization
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse, Response, HTMLResponse
 import uvicorn
 
-# ---- Force CPU (optional – use if no GPU in production) ----
+# Force CPU if no GPU
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 # ---- Load model ----
-MODEL_PATH = "phase2_checkpoint.keras"
+MODEL_PATH = "hybrid_blood_detector.keras"
 if not os.path.exists(MODEL_PATH):
     raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
 model = keras.models.load_model(MODEL_PATH)
 print("✅ Model loaded successfully.")
+# ... rest of app.py unchanged ...
 
 # ---- Constants ----
 IMAGE_SIZE = (224, 224)

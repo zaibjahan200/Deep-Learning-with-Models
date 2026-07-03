@@ -14,7 +14,7 @@ import uvicorn
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
 # ---- Load model ----
-MODEL_PATH = "hybrid_blood_detector.keras"
+MODEL_PATH = "phase2_checkpoint.keras"
 if not os.path.exists(MODEL_PATH):
     raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
 model = keras.models.load_model(MODEL_PATH)

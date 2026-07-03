@@ -2,86 +2,143 @@ import os
 import io
 import numpy as np
 from PIL import Image
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import HTMLResponse
+import cv2
 import tensorflow as tf
+from tensorflow import keras
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.responses import JSONResponse, Response, HTMLResponse
+import uvicorn
 
-# Force CPU (optional, for Docker)
+# ---- Force CPU (optional – use if no GPU in production) ----
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
-# ------------------ 1. FIND AND LOAD MODEL ------------------
-# Automatically pick the .keras file in the current directory
-keras_files = [f for f in os.listdir(".") if f.endswith(".keras")]
-if not keras_files:
-    raise FileNotFoundError("No .keras model file found in the current directory.")
-MODEL_PATH = keras_files[0]  # use the first one
-print(f"📂 Using model file: {MODEL_PATH}")
+# ---- Load model ----
+MODEL_PATH = "phase2_checkpoint.keras"
+if not os.path.exists(MODEL_PATH):
+    raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
+model = keras.models.load_model(MODEL_PATH)
+print("✅ Model loaded successfully.")
 
-# Load the model (this will print any TensorFlow warnings)
-print("⏳ Loading model...")
-model = tf.keras.models.load_model(MODEL_PATH)
-print("✅ Model loaded successfully!")
+# ---- Constants ----
+IMAGE_SIZE = (224, 224)
+CLS_THRESHOLD = 0.5
 
-# ------------------ 2. PREPROCESSING FUNCTION ------------------
-def preprocess_image(image_bytes):
+# ---- Preprocessing function ----
+def preprocess_image_bytes(image_bytes):
+    """
+    Convert uploaded bytes to model input.
+    Returns normalized numpy array of shape (1, 224, 224, 3)
+    """
     img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-    img = img.resize((224, 224))          # match training size
-    img_array = np.array(img) / 255.0     # normalize
-    img_array = np.expand_dims(img_array, axis=0)  # add batch dimension
-    return img_array.astype(np.float32)
+    img = img.resize(IMAGE_SIZE)
+    img_array = np.array(img, dtype=np.float32) / 255.0
+    return np.expand_dims(img_array, axis=0)
 
-# ------------------ 3. FASTAPI APP ------------------
+# ---- Prediction function ----
+def predict_blood(image_bytes):
+    """
+    Run inference and return (cls_pred, reg_pred)
+    """
+    inp = preprocess_image_bytes(image_bytes)
+    cls_pred, reg_pred = model.predict(inp, verbose=0)
+    # cls_pred: (1,1), reg_pred: (1,4)
+    return cls_pred[0][0], reg_pred[0]
+
+# ---- Blur function ----
+def blur_blood(image_bytes, cls_conf, reg_coords, blur_strength=(51,51)):
+    """
+    Blur the detected region on the original image.
+    Returns blurred image as bytes (JPEG).
+    """
+    img = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("Could not decode image")
+    h, w = img.shape[:2]
+    xc, yc, bw, bh = reg_coords
+    # Convert normalized to pixel coordinates
+    xc_px = int(xc * w)
+    yc_px = int(yc * h)
+    w_px = int(bw * w)
+    h_px = int(bh * h)
+    x1 = max(0, xc_px - w_px // 2)
+    y1 = max(0, yc_px - h_px // 2)
+    x2 = min(w, xc_px + w_px // 2)
+    y2 = min(h, yc_px + h_px // 2)
+    roi = img[y1:y2, x1:x2]
+    if roi.size > 0:
+        blurred_roi = cv2.GaussianBlur(roi, blur_strength, 0)
+        img[y1:y2, x1:x2] = blurred_roi
+    _, encoded = cv2.imencode('.jpg', img)
+    return encoded.tobytes()
+
+# ---- FastAPI app ----
 app = FastAPI(
     title="Blood Detection API",
-    description="Predicts if an image contains blood",
+    description="Hybrid model (YOLO backbone + custom head) for blood detection and blurring.",
     version="1.0"
 )
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def root():
-    return {"message": "Blood Detection API is running. Use /predict"}
+    return """
+    <html><body>
+    <h2>Blood Detection API</h2>
+    <p>Use <code>/predict</code> to get classification + bbox, or <code>/blur</code> to get blurred image.</p>
+    <p>Swagger docs at <a href="/docs">/docs</a></p>
+    </body></html>
+    """
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
+    """
+    Predict blood presence and bounding box.
+    Returns JSON with:
+      - prediction: "Blood" or "No Blood"
+      - confidence: float
+      - bbox: {x_center, y_center, width, height} (normalized)
+    """
     if not file.content_type.startswith("image/"):
-        raise HTTPException(400, f"File must be an image. Received: {file.content_type}")
+        raise HTTPException(400, "File must be an image.")
     try:
         image_bytes = await file.read()
-        input_tensor = preprocess_image(image_bytes)
-        pred = model.predict(input_tensor, verbose=0)[0][0]
-        prob_blood = float(pred)
-        prob_no_blood = 1.0 - prob_blood
-        class_label = "Blood" if prob_blood >= 0.5 else "No Blood"
+        cls_conf, reg_coords = predict_blood(image_bytes)
+        is_blood = cls_conf >= CLS_THRESHOLD
         return {
-            "prediction": class_label,
-            "confidence": {
-                "blood": round(prob_blood, 4),
-                "no_blood": round(prob_no_blood, 4)
+            "prediction": "Blood" if is_blood else "No Blood",
+            "confidence": float(cls_conf),
+            "bbox": {
+                "x_center": float(reg_coords[0]),
+                "y_center": float(reg_coords[1]),
+                "width": float(reg_coords[2]),
+                "height": float(reg_coords[3])
             }
         }
     except Exception as e:
-        raise HTTPException(500, detail=f"Prediction error: {str(e)}")
-    finally:
-        await file.close()
+        raise HTTPException(500, detail=str(e))
 
-@app.get("/test", response_class=HTMLResponse)
-async def test_form():
-    return """
-    <!DOCTYPE html>
-    <html>
-    <head><title>Blood Tester</title></head>
-    <body>
-        <h2>Upload an image</h2>
-        <form action="/predict" method="post" enctype="multipart/form-data">
-            <input type="file" name="file" accept="image/*" required>
-            <button type="submit">Predict</button>
-        </form>
-    </body>
-    </html>
+@app.post("/blur")
+async def blur(file: UploadFile = File(...), blur_strength: int = 51):
     """
+    Return the image with the detected blood region blurred.
+    If no blood detected, returns the original image.
+    """
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(400, "File must be an image.")
+    try:
+        image_bytes = await file.read()
+        cls_conf, reg_coords = predict_blood(image_bytes)
+        if cls_conf < CLS_THRESHOLD:
+            # No blood – return original image
+            return Response(content=image_bytes, media_type="image/jpeg")
+        # Blur the region
+        blurred_bytes = blur_blood(image_bytes, cls_conf, reg_coords, blur_strength=(blur_strength, blur_strength))
+        return Response(content=blurred_bytes, media_type="image/jpeg")
+    except Exception as e:
+        raise HTTPException(500, detail=str(e))
 
-# ------------------ 4. START THE SERVER (only when run directly) ------------------
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
 if __name__ == "__main__":
-    import uvicorn
-    # reload=False is recommended for production
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("app:app", host="0.0.0.0", port=8000)

@@ -39,7 +39,7 @@ def predict_blood(image_bytes):
     return cls_pred[0][0], reg_pred[0]
 
 # ---- Blur function ----
-def blur_blood(image_bytes, cls_conf, reg_coords, blur_strength=(51,51)):
+def blur_blood(image_bytes, cls_conf, reg_coords, blur_strength=(71,71)):
     img = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
     h, w = img.shape[:2]
     xc, yc, bw, bh = reg_coords

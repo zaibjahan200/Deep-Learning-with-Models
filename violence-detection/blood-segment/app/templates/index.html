@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Blood Detection</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Inter", system-ui, sans-serif;
+      background: #0f0f0f;
+      color: #e8e8e8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 24px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: #fff;
+    }
+
+    header p {
+      margin-top: 8px;
+      color: #888;
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 32px;
+      width: 100%;
+      max-width: 680px;
+      margin-bottom: 24px;
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #aaa;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 20px;
+    }
+
+    /* Upload zone */
+    .upload-zone {
+      border: 2px dashed #333;
+      border-radius: 8px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      position: relative;
+    }
+
+    .upload-zone:hover { border-color: #555; }
+    .upload-zone.dragover { border-color: #666; background: #1f1f1f; }
+
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .upload-zone .icon {
+      font-size: 2.5rem;
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .upload-zone p {
+      color: #666;
+      font-size: 0.9rem;
+    }
+
+    .upload-zone .filename {
+      margin-top: 12px;
+      color: #aaa;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    /* Buttons */
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-predict {
+      background: #2a2a2a;
+      color: #e8e8e8;
+      border: 1px solid #3a3a3a;
+    }
+
+    .btn-blur {
+      background: #e8e8e8;
+      color: #0f0f0f;
+    }
+
+    button:not(:disabled):hover { opacity: 0.85; }
+
+    /* Result */
+    #result { display: none; }
+
+    .confidence-bar-wrap {
+      margin-bottom: 20px;
+    }
+
+    .confidence-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 6px;
+    }
+
+    .confidence-label span:last-child {
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .bar-track {
+      height: 6px;
+      background: #2a2a2a;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: #fff;
+      transition: width 0.5s ease;
+    }
+
+    .verdict {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+
+    .verdict.detected {
+      background: #2a1a1a;
+      border: 1px solid #5a2a2a;
+      color: #f87171;
+    }
+
+    .verdict.clear {
+      background: #1a2a1a;
+      border: 1px solid #2a5a2a;
+      color: #86efac;
+    }
+
+    /* Image comparison */
+    .images {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .img-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .img-wrap span {
+      font-size: 0.78rem;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .img-wrap img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #2a2a2a;
+      display: block;
+    }
+
+    /* Spinner */
+    .spinner {
+      display: none;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #333;
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading .spinner { display: block; }
+    .loading button { display: none; }
+
+    .error-msg {
+      color: #f87171;
+      font-size: 0.85rem;
+      margin-top: 12px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Blood Detection</h1>
+  <p>Upload an image to classify and blur blood regions</p>
+</header>
+
+<div class="card">
+  <h2>Image</h2>
+
+  <div class="upload-zone" id="dropZone">
+    <input type="file" id="fileInput" accept="image/jpeg,image/png" />
+    <span class="icon">🖼</span>
+    <p>Drop an image here or click to browse</p>
+    <p class="filename" id="filename"></p>
+  </div>
+
+  <div class="btn-group" id="btnGroup">
+    <button class="btn-predict" id="btnPredict" disabled onclick="runPredict()">Classify</button>
+    <button class="btn-blur" id="btnBlur" disabled onclick="runBlur()">Classify + Blur</button>
+  </div>
+
+  <div class="spinner" id="spinner"></div>
+  <p class="error-msg" id="errorMsg"></p>
+</div>
+
+<div class="card" id="result">
+  <h2>Result</h2>
+
+  <div class="verdict" id="verdict"></div>
+
+  <div class="confidence-bar-wrap">
+    <div class="confidence-label">
+      <span>Blood confidence</span>
+      <span id="confValue">—</span>
+    </div>
+    <div class="bar-track">
+      <div class="bar-fill" id="confBar" style="width: 0%"></div>
+    </div>
+  </div>
+
+  <div class="images" id="imageGrid" style="display:none;">
+    <div class="img-wrap">
+      <span>Original</span>
+      <img id="originalImg" src="" alt="Original" />
+    </div>
+    <div class="img-wrap">
+      <span>Blurred</span>
+      <img id="blurredImg" src="" alt="Blurred" />
+    </div>
+  </div>
+</div>
+
+<script>
+  const fileInput = document.getElementById("fileInput");
+  const filename = document.getElementById("filename");
+  const btnPredict = document.getElementById("btnPredict");
+  const btnBlur = document.getElementById("btnBlur");
+  const spinner = document.getElementById("spinner");
+  const btnGroup = document.getElementById("btnGroup");
+  const errorMsg = document.getElementById("errorMsg");
+  const result = document.getElementById("result");
+
+  let selectedFile = null;
+
+  fileInput.addEventListener("change", () => {
+    selectedFile = fileInput.files[0];
+    if (selectedFile) {
+      filename.textContent = selectedFile.name;
+      btnPredict.disabled = false;
+      btnBlur.disabled = false;
+      errorMsg.style.display = "none";
+      result.style.display = "none";
+    }
+  });
+
+  // Drag and drop
+  const dropZone = document.getElementById("dropZone");
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      fileInput.files = e.dataTransfer.files;
+      fileInput.dispatchEvent(new Event("change"));
+    }
+  });
+
+  function setLoading(on) {
+    spinner.style.display = on ? "block" : "none";
+    btnGroup.style.display = on ? "none" : "flex";
+  }
+
+  function showError(msg) {
+    errorMsg.textContent = msg;
+    errorMsg.style.display = "block";
+  }
+
+  async function runPredict() {
+    if (!selectedFile) return;
+    setLoading(true);
+    errorMsg.style.display = "none";
+
+    try {
+      const form = new FormData();
+      form.append("file", selectedFile);
+      const res = await fetch("/predict", { method: "POST", body: form });
+      if (!res.ok) throw new Error((await res.json()).detail);
+      const data = await res.json();
+      showResult(data, false);
+    } catch (e) {
+      showError(e.message || "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function runBlur() {
+    if (!selectedFile) return;
+    setLoading(true);
+    errorMsg.style.display = "none";
+
+    try {
+      const form = new FormData();
+      form.append("file", selectedFile);
+      const res = await fetch("/blur", { method: "POST", body: form });
+      if (!res.ok) throw new Error((await res.json()).detail);
+      const data = await res.json();
+      showResult(data, true);
+    } catch (e) {
+      showError(e.message || "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function showResult(data, showImages) {
+    result.style.display = "block";
+
+    // Verdict badge
+    const verdict = document.getElementById("verdict");
+    verdict.className = "verdict " + (data.has_blood ? "detected" : "clear");
+    verdict.innerHTML = data.has_blood
+      ? "⬛ Blood Detected"
+      : "✓ No Blood Detected";
+
+    // Confidence bar
+    const pct = Math.round(data.confidence * 100);
+    document.getElementById("confValue").textContent = pct + "%";
+    document.getElementById("confBar").style.width = pct + "%";
+
+    // Images
+    const imageGrid = document.getElementById("imageGrid");
+    if (showImages && data.blurred_image) {
+      imageGrid.style.display = "grid";
+      // Original
+      const reader = new FileReader();
+      reader.onload = e => { document.getElementById("originalImg").src = e.target.result; };
+      reader.readAsDataURL(selectedFile);
+      // Blurred
+      document.getElementById("blurredImg").src = "data:image/jpeg;base64," + data.blurred_image;
+    } else {
+      imageGrid.style.display = "none";
+    }
+
+    result.scrollIntoView({ behavior: "smooth" });
+  }
+</script>
+
+</body>
+</html>

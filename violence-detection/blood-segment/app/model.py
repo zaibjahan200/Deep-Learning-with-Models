@@ -50,12 +50,11 @@ class BloodDetector:
         return confidence, has_blood
 
     def blur(self, image: np.ndarray) -> tuple:
-        """
-        Runs segmentation mask and applies Gaussian blur to blood regions.
-        Returns (confidence, has_blood, blurred_image).
-        """
         confidence, mask = self.predict_raw(image)
         has_blood = confidence >= CLASSIFICATION_THRESHOLD
+
+        # Cast to float32 — OpenCV resize doesn't support float16
+        mask = mask.astype(np.float32)
 
         # Resize mask back to original image size
         h, w = image.shape[:2]

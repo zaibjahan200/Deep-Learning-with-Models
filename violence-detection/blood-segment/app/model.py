@@ -10,7 +10,9 @@ import tensorflow as tf
 MODEL_PATH = os.environ.get("MODEL_PATH", "app/best_model_phase2_25.keras")
 IMAGE_SIZE = (384, 384)
 CLASSIFICATION_THRESHOLD = 0.5
-MASK_THRESHOLD = 0.7
+MASK_THRESHOLD = 0.8
+MIN_MASK_AREA_RATIO = 0.005
+MIN_COMPONENT_AREA = 100
 BLUR_KERNEL = (51, 51)
 BLUR_SIGMA = 20
 
@@ -50,12 +52,15 @@ class BloodDetector:
         return confidence, has_blood
 
     def blur(self, image: np.ndarray) -> tuple:
+
         confidence, mask = self.predict_raw(image)
 
         has_blood = confidence >= CLASSIFICATION_THRESHOLD
 
+
         if not has_blood:
-            return confidence, False, image
+            return confidence, False, image.astype(np.uint8)
+
 
         mask = mask.astype(np.float32)
 
@@ -67,9 +72,39 @@ class BloodDetector:
             interpolation=cv2.INTER_LINEAR
         )
 
+
         binary_mask = (
             mask_resized > MASK_THRESHOLD
         ).astype(np.uint8)
+
+
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
+            binary_mask,
+            connectivity=8
+        )
+
+
+        cleaned_mask = np.zeros_like(binary_mask)
+
+
+        for i in range(1, num_labels):
+
+            area = stats[i, cv2.CC_STAT_AREA]
+
+            if area >= MIN_COMPONENT_AREA:
+                cleaned_mask[labels == i] = 1
+
+
+        mask_ratio = (
+            np.sum(cleaned_mask) /
+            cleaned_mask.size
+        )
+
+
+        if mask_ratio < MIN_MASK_AREA_RATIO:
+
+            return confidence, True, image.astype(np.uint8)
+
 
         blurred = cv2.GaussianBlur(
             image,
@@ -77,15 +112,18 @@ class BloodDetector:
             BLUR_SIGMA
         )
 
+
         mask_3ch = np.stack(
-            [binary_mask] * 3,
+            [cleaned_mask] * 3,
             axis=-1
         )
+
 
         result = np.where(
             mask_3ch == 1,
             blurred,
             image
         )
+
 
         return confidence, True, result.astype(np.uint8)

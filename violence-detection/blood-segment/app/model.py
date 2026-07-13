@@ -51,23 +51,41 @@ class BloodDetector:
 
     def blur(self, image: np.ndarray) -> tuple:
         confidence, mask = self.predict_raw(image)
+
         has_blood = confidence >= CLASSIFICATION_THRESHOLD
 
-        # Cast to float32 — OpenCV resize doesn't support float16
+        if not has_blood:
+            return confidence, False, image
+
         mask = mask.astype(np.float32)
 
-        # Resize mask back to original image size
         h, w = image.shape[:2]
-        mask_resized = cv2.resize(mask, (w, h), interpolation=cv2.INTER_LINEAR)
 
-        # Binary mask
-        binary_mask = (mask_resized > MASK_THRESHOLD).astype(np.uint8)
+        mask_resized = cv2.resize(
+            mask,
+            (w, h),
+            interpolation=cv2.INTER_LINEAR
+        )
 
-        # Apply Gaussian blur to entire image
-        blurred = cv2.GaussianBlur(image, BLUR_KERNEL, BLUR_SIGMA)
+        binary_mask = (
+            mask_resized > MASK_THRESHOLD
+        ).astype(np.uint8)
 
-        # Composite: use blurred only where mask is 1
-        mask_3ch = np.stack([binary_mask] * 3, axis=-1)
-        result = np.where(mask_3ch == 1, blurred, image)
+        blurred = cv2.GaussianBlur(
+            image,
+            BLUR_KERNEL,
+            BLUR_SIGMA
+        )
 
-        return confidence, has_blood, result.astype(np.uint8)
+        mask_3ch = np.stack(
+            [binary_mask] * 3,
+            axis=-1
+        )
+
+        result = np.where(
+            mask_3ch == 1,
+            blurred,
+            image
+        )
+
+        return confidence, True, result.astype(np.uint8)

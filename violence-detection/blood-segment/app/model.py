@@ -9,8 +9,8 @@ import tensorflow as tf
 
 MODEL_PATH = os.environ.get("MODEL_PATH", "app/best_model_phase2_10.keras")
 IMAGE_SIZE = (384, 384)
-CLASSIFICATION_THRESHOLD = 0.5
-MASK_THRESHOLD = 0.5
+CLASSIFICATION_THRESHOLD = 0.6
+MASK_THRESHOLD = 0.4
 BLUR_KERNEL = (51, 51)
 BLUR_SIGMA = 20
 

@@ -7,7 +7,7 @@ import tensorflow as tf
 # CONFIG
 # ============================================
 
-MODEL_PATH = os.environ.get("MODEL_PATH", "app/best_model.keras")
+MODEL_PATH = os.environ.get("MODEL_PATH", "app/best_model_phase2_10.keras")
 IMAGE_SIZE = (384, 384)
 CLASSIFICATION_THRESHOLD = 0.5
 MASK_THRESHOLD = 0.5

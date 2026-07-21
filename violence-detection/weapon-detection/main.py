@@ -1,7 +1,7 @@
 import base64
 import os
 from contextlib import asynccontextmanager
-
+from fastapi.responses import JSONResponse, HTMLResponse
 import cv2
 import numpy as np
 import torch
@@ -73,6 +73,106 @@ app = FastAPI(title="Weapon Detector API", lifespan=lifespan)
 def health():
     return {"status": "ok"}
 
+INDEX_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Weapon Detector</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  .panel { border: 1px solid #ccc; border-radius: 8px; padding: 16px; margin-top: 16px; }
+  label { display: block; margin-bottom: 6px; font-weight: 600; }
+  input[type="file"] { margin-bottom: 12px; }
+  input[type="number"] { width: 80px; margin-left: 8px; }
+  button { padding: 8px 16px; border: none; border-radius: 6px; background: #1a1a1a; color: #fff; cursor: pointer; }
+  button:disabled { background: #888; cursor: not-allowed; }
+  #status { margin-top: 10px; font-style: italic; }
+  #result-img { max-width: 100%; margin-top: 16px; border: 1px solid #ccc; border-radius: 6px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+  <h1>Weapon Detector — upload &amp; blur</h1>
+  <div class="panel">
+    <form id="upload-form">
+      <label for="file">Image file</label>
+      <input type="file" id="file" name="file" accept="image/*" required>
+      <label for="threshold">Confidence threshold</label>
+      <input type="number" id="threshold" name="threshold" value="0.5" min="0" max="1" step="0.05">
+      <div style="margin-top: 14px;">
+        <button type="submit" id="submit-btn">Detect &amp; blur</button>
+      </div>
+    </form>
+    <div id="status"></div>
+  </div>
+  <div class="panel" id="result-panel" style="display:none;">
+    <img id="result-img" alt="Blurred result">
+    <table id="detections-table">
+      <thead><tr><th>Class</th><th>Confidence</th><th>Box (x1, y1, x2, y2)</th></tr></thead>
+      <tbody id="detections-body"></tbody>
+    </table>
+    <div id="detections-empty" style="display:none;">No detections above threshold.</div>
+  </div>
+<script>
+const form = document.getElementById('upload-form');
+const statusEl = document.getElementById('status');
+const submitBtn = document.getElementById('submit-btn');
+const resultPanel = document.getElementById('result-panel');
+const resultImg = document.getElementById('result-img');
+const detectionsBody = document.getElementById('detections-body');
+const detectionsEmpty = document.getElementById('detections-empty');
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fileInput = document.getElementById('file');
+  const threshold = document.getElementById('threshold').value;
+  if (!fileInput.files.length) return;
+
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+
+  submitBtn.disabled = true;
+  statusEl.textContent = 'Running detection... (CPU inference can take a few seconds)';
+  resultPanel.style.display = 'none';
+
+  try {
+    const url = `/detect-and-blur?conf_threshold=${encodeURIComponent(threshold)}`;
+    const resp = await fetch(url, { method: 'POST', body: formData });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error || `Request failed (${resp.status})`);
+    }
+    const data = await resp.json();
+    resultImg.src = `data:image/jpeg;base64,${data.image_base64}`;
+    detectionsBody.innerHTML = '';
+    if (data.detections.length === 0) {
+      detectionsEmpty.style.display = 'block';
+    } else {
+      detectionsEmpty.style.display = 'none';
+      for (const d of data.detections) {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>${d.class_name}</td><td>${(d.confidence * 100).toFixed(1)}%</td><td>${d.box.join(', ')}</td>`;
+        detectionsBody.appendChild(row);
+      }
+    }
+    resultPanel.style.display = 'block';
+    statusEl.textContent = `Done — ${data.detections.length} detection(s) above threshold.`;
+  } catch (err) {
+    statusEl.textContent = `Error: ${err.message}`;
+  } finally {
+    submitBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
+"""
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    return INDEX_HTML
 
 def blur_detections(img_bgr, boxes, scores, labels, threshold):
     """Blur every detected region above `threshold`. Blur-only — no box/label

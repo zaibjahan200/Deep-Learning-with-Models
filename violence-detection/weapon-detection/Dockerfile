@@ -21,7 +21,7 @@ COPY weapon_detector_best.pth .
 ENV TORCH_NUM_THREADS=2
 ENV MODEL_PATH=/app/weapon_detector_best.pth
 
-EXPOSE 8080
+EXPOSE 8000
 
 # Cloud Run injects $PORT (defaults to 8080) — respect it rather than hardcoding.
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

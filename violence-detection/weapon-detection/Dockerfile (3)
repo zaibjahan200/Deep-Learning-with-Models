@@ -1,0 +1,27 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# libgl1/libglib2.0-0: required by opencv-python-headless at import time
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+
+# CPU-only torch/torchvision — avoids pulling in the full CUDA toolkit,
+# which isn't used on Cloud Run's CPU tier and would bloat the image by GBs.
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY main.py .
+COPY weapon_detector_best.pth .
+
+ENV TORCH_NUM_THREADS=2
+ENV MODEL_PATH=/app/weapon_detector_best.pth
+
+EXPOSE 8080
+
+# Cloud Run injects $PORT (defaults to 8080) — respect it rather than hardcoding.
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
